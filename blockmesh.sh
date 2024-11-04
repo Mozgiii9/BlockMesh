@@ -33,7 +33,7 @@ fi
 sleep 1
 
 # Проверка наличия bc и установка, если не установлен
-echo -e "${BLUE}Проверяем версию вашей OS...${NC}"
+echo -e "${GREEN}Проверяем версию вашей OS...${NC}"
 if ! command -v bc &> /dev/null; then
     sudo apt update
     sudo apt install bc -y
@@ -50,17 +50,18 @@ if (( $(echo "$UBUNTU_VERSION < $REQUIRED_VERSION" | bc -l) )); then
 fi
 
 # Меню
-echo -e "${YELLOW}Выберите действие:${NC}"
+echo -e "${GREEN}Выберите действие:${NC}"
 echo -e "${CYAN}1) Установка ноды${NC}"
 echo -e "${CYAN}2) Проверка логов (выход из логов CTRL+C)${NC}"
-echo -e "${CYAN}3) Удаление ноды${NC}"
+echo -e "${CYAN}3) Обновить ноду до версии 0.0.331${NC}"
+echo -e "${CYAN}4) Удаление ноды${NC}"
 
-echo -e "${YELLOW}Введите номер:${NC} "
+echo -e "${GREEN}Введите номер:${NC} "
 read choice
 
 case $choice in
     1)
-        echo -e "${BLUE}Устанавливаем ноду BlockMesh...${NC}"
+        echo -e "${GREEN}Устанавливаем ноду BlockMesh...${NC}"
 
         # Проверка наличия tar и установка, если не установлен
         if ! command -v tar &> /dev/null; then
@@ -69,7 +70,7 @@ case $choice in
         sleep 1
         
         # Скачиваем бинарник BlockMesh
-        wget https://github.com/block-mesh/block-mesh-monorepo/releases/download/v0.0.307/blockmesh-cli-x86_64-unknown-linux-gnu.tar.gz
+        wget https://github.com/block-mesh/block-mesh-monorepo/releases/download/v0.0.331/blockmesh-cli-x86_64-unknown-linux-gnu.tar.gz
 
         # Распаковываем архив
         tar -xzvf blockmesh-cli-x86_64-unknown-linux-gnu.tar.gz
@@ -82,10 +83,10 @@ case $choice in
         cd target/release
 
         # Запрашиваем данные у пользователя
-        echo -e "${YELLOW}Введите ваш email:${NC}"
+        echo -e "${BLUE}Email BlockMesh:${NC}"
         read USER_EMAIL
 
-        echo -e "${YELLOW}Введите ваш пароль:${NC}"
+        echo -e "${BLUE}Пароль BlockMesh:${NC}"
         read USER_PASSWORD
 
         # Определяем имя текущего пользователя и его домашнюю директорию
@@ -120,7 +121,7 @@ EOT"
         sudo systemctl start blockmesh
 
         # Заключительный вывод
-        echo -e "${GREEN}Установка завершена и нода запущена!${NC}"
+        echo -e "${GREEN}Установка завершена и нода запущена! Следи за состоянием ноды в Dashboard: https://app.blockmesh.xyz/ui/dashboard${NC}"
 
         # Проверка логов
         sudo journalctl -u blockmesh -f
@@ -132,7 +133,71 @@ EOT"
         ;;
 
     3)
-        echo -e "${BLUE}Удаление ноды BlockMesh...${NC}"
+        echo -e "${GREEN}Обновляем ноду BlockMesh...${NC}"
+
+        # Останавливаем сервис
+        sudo systemctl stop blockmesh
+        sudo systemctl disable blockmesh
+        sudo rm /etc/systemd/system/blockmesh.service
+        sudo systemctl daemon-reload
+        sleep 1
+
+        # Удаляем старые файлы ноды
+        rm -rf target
+        sleep 1
+
+        # Скачиваем новый бинарник BlockMesh
+        wget https://github.com/block-mesh/block-mesh-monorepo/releases/download/v0.0.331/blockmesh-cli-x86_64-unknown-linux-gnu.tar.gz
+
+        # Распаковываем архив
+        tar -xzvf blockmesh-cli-x86_64-unknown-linux-gnu.tar.gz
+        sleep 1
+
+        # Удаляем архив
+        rm blockmesh-cli-x86_64-unknown-linux-gnu.tar.gz
+
+        #Переходим в папку
+        cd target/x86_64-unknown-linux-gnu/release/
+
+        # Запрашиваем данные у пользователя для обновления переменных
+        echo -e "${BLUE}Введите ваш email для BlockMesh:${NC} "
+        read EMAIL
+        echo -e "${BLUE}Введите ваш пароль для BlockMesh:${NC} "
+        read PASSWORD
+
+        # Определяем имя текущего пользователя и его домашнюю директорию
+        USERNAME=$(whoami)
+        HOME_DIR=$(eval echo ~$USERNAME)
+
+        # Создаем или обновляем файл сервиса
+        sudo bash -c "cat <<EOT > /etc/systemd/system/blockmesh.service
+[Unit]
+Description=BlockMesh CLI Service
+After=network.target
+
+[Service]
+User=$USERNAME
+ExecStart=$HOME_DIR/target/x86_64-unknown-linux-gnu/release/blockmesh-cli login --email $EMAIL --password $PASSWORD
+WorkingDirectory=$HOME_DIR/target/x86_64-unknown-linux-gnu/release
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOT"
+
+        # Перезапускаем сервис
+        sudo systemctl daemon-reload
+        sleep 1
+        sudo systemctl enable blockmesh
+        sudo systemctl restart blockmesh
+
+        # Заключительный вывод
+        echo -e "${GREEN}Обновление успешно завершено, нода запущена! Следи за состоянием ноды в Dashboard: https://app.blockmesh.xyz/ui/dashboard${NC}"
+
+        ;;
+
+    4)
+        echo -e "${RED}Удаление ноды BlockMesh...${NC}"
 
         # Остановка и отключение сервиса
         sudo systemctl stop blockmesh
@@ -144,7 +209,7 @@ EOT"
         # Удаление папки target с файлами
         rm -rf target
 
-        echo -e "${GREEN}Нода BlockMesh успешно удалена!${NC}"
+        echo -e "${RED}Нода BlockMesh успешно удалена!${NC}"
         ;;
         
 esac
